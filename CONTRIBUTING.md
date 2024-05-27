@@ -224,7 +224,7 @@ the standard `jupyter` install as long as you have `nbclient>=0.5.5`.
 
 Similar to adding new [test scripts](#adding-tests), you don't need to
 explicitly add new tutorials to `ci.yml` to be tested: as long as your notebook
-is in the `examples/` directory and has an `ipynb` extension, our github actions
+is in the `examples/` directory and has an `ipynb` extension, our Github actions
 will automatically find it and test it.
 
 If your notebook needs additional files to run, you should add a [conditional
