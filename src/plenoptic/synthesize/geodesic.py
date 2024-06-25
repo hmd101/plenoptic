@@ -48,6 +48,9 @@ class Geodesic(OptimizedSynthesis):
         Range (inclusive) of allowed pixel values. Any values outside this
         range will be penalized.
 
+    loss
+        the loss function to use. By default, this is the L2 norm
+
     Attributes
     ----------
     geodesic: Tensor
@@ -100,7 +103,7 @@ class Geodesic(OptimizedSynthesis):
                  model: torch.nn.Module, n_steps: int = 10,
                  initial_sequence: Literal['straight', 'bridge'] = 'straight',
                  range_penalty_lambda: float = .1,
-                 allowed_range: Tuple[float, float] = (0, 1)):
+                 allowed_range: Tuple[float, float] = (0, 1), loss_type: str = 'l2'):
         super().__init__(range_penalty_lambda, allowed_range)
         validate_input(image_a, no_batch=True, allowed_range=allowed_range)
         validate_input(image_b, no_batch=True, allowed_range=allowed_range)
@@ -108,6 +111,7 @@ class Geodesic(OptimizedSynthesis):
                        device=image_a.device)
 
         self.n_steps = n_steps
+        self.loss_type = loss_type
         self._model = model
         self._image_a = image_a
         self._image_b = image_b
@@ -115,6 +119,7 @@ class Geodesic(OptimizedSynthesis):
         self._initialize(initial_sequence, image_a, image_b, n_steps)
         self._dev_from_line = []
         self._step_energy = []
+        
 
     def _initialize(self, initial_sequence, start, stop, n_steps):
         """initialize the geodesic
@@ -136,6 +141,16 @@ class Geodesic(OptimizedSynthesis):
         self._initial_sequence = initial_sequence
         geodesic.requires_grad_()
         self._geodesic = geodesic
+
+    def compute_loss(self, images):
+        if self.loss_type == 'l2':
+            return torch.linalg.vector_norm(images, ord=2, dim=[1, 2, 3]) ** 2
+        elif self.loss_type == 'l1':
+            return torch.linalg.vector_norm(images, ord=1, dim=[1, 2, 3]) ** 2
+
+        else:
+            raise ValueError("Unsupported loss type specified. Expected 'l1' or 'l2'.")
+
 
     def synthesize(self, max_iter: int = 1000,
                    optimizer: Optional[torch.optim.Optimizer] = None,
@@ -231,9 +246,21 @@ class Geodesic(OptimizedSynthesis):
 
     def _calculate_step_energy(self, z):
         """calculate the energy (i.e. squared l2 norm) of each step in `z`.
+
+        Parameters
+        ----------
+        z
+            the representation of the geodesic
+        
+        Returns
+        -------
+        step_energy 
+            the energy of each step in the geodesic 
         """
         velocity = torch.diff(z, dim=0)
-        step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
+        #step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
+        step_energy = self.compute_loss(velocity)
+
         return step_energy
 
     def _optimizer_step(self, pbar):
