@@ -284,7 +284,7 @@ class Geodesic(OptimizedSynthesis):
         grad_norm = torch.linalg.vector_norm(self._geodesic.grad.data,
                                              ord=2, dim=None)
         self._gradient_norm.append(grad_norm)
-
+        # TODO: make norm in pixel space choosable by user. Current Default: L2. Introduce L1 norm as a choice.
         pixel_change_norm = torch.linalg.vector_norm(self._geodesic - last_iter_geodesic,
                                                      ord=2, dim=None)
         self._pixel_change_norm.append(pixel_change_norm)
