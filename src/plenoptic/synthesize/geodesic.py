@@ -585,7 +585,7 @@ def plot_loss(geodesic: Geodesic,
     """
     if ax is None:
         ax = plt.gca()
-    ax.semilogy(geodesic.losses, **kwargs)
+    ax.semilogy(geodesic.losses.cpu(), **kwargs)
     ax.set(xlabel='Synthesis iteration',
            ylabel='Loss')
     return ax
