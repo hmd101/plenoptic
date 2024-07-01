@@ -48,8 +48,11 @@ class Geodesic(OptimizedSynthesis):
         Range (inclusive) of allowed pixel values. Any values outside this
         range will be penalized.
 
-    loss
-        the loss function to use. By default, this is the L2 norm
+    loss_type_pix
+        the loss function to use in pixel space. By default, this is the L2 norm.
+
+    loss_type_rep
+        the loss function to use in representation space. By default, this is the L2 norm.
 
     Attributes
     ----------
@@ -63,9 +66,9 @@ class Geodesic(OptimizedSynthesis):
     losses : Tensor
         A list of our loss over iterations.
     gradient_norm : list
-        A list of the gradient's L2 norm over iterations.
+        A list of the gradient's L2 norm over iterations (default is L2).
     pixel_change_norm : list
-        A list containing the L2 norm of the pixel change over iterations
+        A list containing the norm of the pixel change over iterations (default is L2)
         (``pixel_change_norm[i]`` is the pixel change norm in
         ``geodesic`` between iterations ``i`` and ``i-1``).
     step_energy: Tensor
@@ -103,7 +106,7 @@ class Geodesic(OptimizedSynthesis):
                  model: torch.nn.Module, n_steps: int = 10,
                  initial_sequence: Literal['straight', 'bridge'] = 'straight',
                  range_penalty_lambda: float = .1,
-                 allowed_range: Tuple[float, float] = (0, 1), loss_type: str = 'l2'):
+                 allowed_range: Tuple[float, float] = (0, 1), loss_type_pix:str = 'l2', loss_type_rep: str = 'l2'):
         super().__init__(range_penalty_lambda, allowed_range)
         validate_input(image_a, no_batch=True, allowed_range=allowed_range)
         validate_input(image_b, no_batch=True, allowed_range=allowed_range)
@@ -111,7 +114,8 @@ class Geodesic(OptimizedSynthesis):
                        device=image_a.device)
 
         self.n_steps = n_steps
-        self.loss_type = loss_type
+        self.loss_type_rep = loss_type_rep # loss type for representation space, default is l2
+        self.loss_type_pix = loss_type_pix # loss type for pixel space, default is l2
         self._model = model
         self._image_a = image_a
         self._image_b = image_b
@@ -142,10 +146,11 @@ class Geodesic(OptimizedSynthesis):
         geodesic.requires_grad_()
         self._geodesic = geodesic
 
-    def compute_loss(self, images):
-        if self.loss_type == 'l2':
+    def compute_loss_squared(self, images):
+        # check if the loss type in pixel and representation space 
+        if 'l2' in [self.loss_type_rep, self.loss_type_pix]:
             return torch.linalg.vector_norm(images, ord=2, dim=[1, 2, 3]) ** 2
-        elif self.loss_type == 'l1':
+        elif 'l1' in [self.loss_type_rep, self.loss_type_pix]:
             return torch.linalg.vector_norm(images, ord=1, dim=[1, 2, 3]) ** 2
 
         else:
@@ -259,7 +264,8 @@ class Geodesic(OptimizedSynthesis):
         """
         velocity = torch.diff(z, dim=0)
         #step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
-        step_energy = self.compute_loss(velocity)
+        # computes loss in representation space, default norm: L2
+        step_energy = self.compute_loss_squared(velocity)
 
         return step_energy
 
@@ -281,12 +287,20 @@ class Geodesic(OptimizedSynthesis):
         loss = self.optimizer.step(self._closure)
         self._losses.append(loss.item())
 
+        # for monitoring convergence, overall magnitude of the gradient is computed
         grad_norm = torch.linalg.vector_norm(self._geodesic.grad.data,
                                              ord=2, dim=None)
         self._gradient_norm.append(grad_norm)
         # TODO: make norm in pixel space choosable by user. Current Default: L2. Introduce L1 norm as a choice.
-        pixel_change_norm = torch.linalg.vector_norm(self._geodesic - last_iter_geodesic,
+        if self.loss_type_pix == 'l1':
+            pixel_change_norm = torch.linalg.vector_norm(self._geodesic - last_iter_geodesic,
+                                                         ord=1, dim=None)
+            
+        else: 
+            # default, i.e., l2 norm
+            pixel_change_norm = torch.linalg.vector_norm(self._geodesic - last_iter_geodesic,
                                                      ord=2, dim=None)
+        
         self._pixel_change_norm.append(pixel_change_norm)
         # displaying some information
         pbar.set_postfix(OrderedDict([('loss', f'{loss.item():.4e}'),
