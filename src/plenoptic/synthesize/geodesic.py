@@ -146,15 +146,15 @@ class Geodesic(OptimizedSynthesis):
         geodesic.requires_grad_()
         self._geodesic = geodesic
 
-    def compute_loss_squared(self, images):
-        # check if the loss type in pixel and representation space 
-        if 'l2' in [self.loss_type_rep, self.loss_type_pix]:
-            return torch.linalg.vector_norm(images, ord=2, dim=[1, 2, 3]) ** 2
-        elif 'l1' in [self.loss_type_rep, self.loss_type_pix]:
-            return torch.linalg.vector_norm(images, ord=1, dim=[1, 2, 3]) ** 2
+    # def compute_loss_squared(self, images):
+    #     # check if the loss type in pixel and representation space 
+    #     if 'l2' in [self.loss_type_rep, self.loss_type_pix]:
+    #         return torch.linalg.vector_norm(images, ord=2, dim=[1, 2, 3]) ** 2
+    #     elif 'l1' in [self.loss_type_rep, self.loss_type_pix]:
+    #         return torch.linalg.vector_norm(images, ord=1, dim=[1, 2, 3]) ** 2
 
-        else:
-            raise ValueError("Unsupported loss type specified. Expected 'l1' or 'l2'.")
+    #     else:
+    #         raise ValueError("Unsupported loss type specified. Expected 'l1' or 'l2'.")
 
 
     def synthesize(self, max_iter: int = 1000,
@@ -263,9 +263,14 @@ class Geodesic(OptimizedSynthesis):
             the energy of each step in the geodesic 
         """
         velocity = torch.diff(z, dim=0)
-        #step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
-        # computes loss in representation space, default norm: L2
-        step_energy = self.compute_loss_squared(velocity)
+        # computes the squared loss in representation space, default norm: L2
+        if self.loss_type_rep == 'l1':
+            step_energy = torch.linalg.vector_norm(velocity, ord=1, dim=[1, 2, 3]) ** 2
+        else:
+            # default, i.e., l2 norm
+            step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
+        # computes the squared loss in representation space, default norm: L2
+        #step_energy = self.compute_loss_squared(velocity)
 
         return step_energy
 
