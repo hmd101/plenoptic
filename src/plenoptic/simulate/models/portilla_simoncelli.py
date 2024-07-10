@@ -17,6 +17,7 @@ import torch
 import torch.fft
 import torch.nn as nn
 from torch import Tensor
+from torchvision.transforms import Resize
 from typing_extensions import Literal
 
 from ...tools import signal, stats
@@ -291,6 +292,44 @@ class PortillaSimoncelli(nn.Module):
             mask_dict[k] = mask
         return mask_dict
 
+    def adjust_dimensions_for_n_scales(image, n_scales):
+        """
+        Adjusts the dimensions of an image if they are not divisible by 2^n_scales.
+        
+        Parameters
+        ----------
+        image : torch.Tensor
+            The input image tensor of shape (C, H, W) or (N, C, H, W).
+        n_scales : int
+            The number of scales for which the dimensions should be divisible by 2.
+        
+        Returns
+        -------
+        torch.Tensor
+            The resized image tensor.
+        tuple
+            A tuple containing the original and adjusted dimensions.
+        """
+        original_height = image.shape[-2]
+        original_width = image.shape[-1]
+        
+        factor = 2 ** n_scales
+        # adjustment calculation:
+        # if the dimension is not divisible by 2^n_scales, we adjust it to the next multiple of 2^n_scales
+        # e.g. for n_scales = 4, if the dimension is 600, we adjust it to 608
+        def adjust_dim(dim):
+            return dim if dim % factor == 0 else (dim + factor - dim % factor)
+        
+        new_height = adjust_dim(original_height)
+        new_width = adjust_dim(original_width)
+        
+        if (new_height, new_width) != (original_height, original_width):
+            resize = Resize((new_height, new_width))
+            image = resize(image)
+        
+        return image
+
+
     def forward(
         self, image: Tensor, scales: Optional[List[SCALES_TYPE]] = None
     ) -> Tensor:
@@ -304,7 +343,7 @@ class PortillaSimoncelli(nn.Module):
             A 4d tensor (batch, channel, height, width) containing the image(s) to
             analyze.
         scales :
-            Which scales to include in the returned representation. If None, we
+            Which scales to include in the returned representation. If None, the default, we
             include all scales. Otherwise, can contain subset of values present
             in this model's ``scales`` attribute, and the returned tensor will
             then contain the subset corresponding to those scales.
@@ -322,6 +361,8 @@ class PortillaSimoncelli(nn.Module):
 
         """
         validate_input(image)
+
+        image = adjust_dimensions_for_n_scales(image, self.n_scales)
 
         # pyr_dict is the dictionary of complex-valued tensors returned by the
         # steerable pyramid. pyr_coeffs is a list (length n_scales) of 5d
@@ -435,6 +476,11 @@ class PortillaSimoncelli(nn.Module):
             representation_tensor = self.remove_scales(representation_tensor, scales)
 
         return representation_tensor
+
+
+
+    
+
 
     def remove_scales(
             self, representation_tensor: Tensor, scales_to_keep: List[SCALES_TYPE]
