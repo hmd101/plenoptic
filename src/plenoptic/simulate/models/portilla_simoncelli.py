@@ -87,11 +87,6 @@ class PortillaSimoncelli(nn.Module):
         super().__init__()
 
         self.image_shape = image_shape
-        # if (any([(image_shape[-1] / 2**i) % 2 for i in range(n_scales)]) or
-        #     any([(image_shape[-2] / 2**i) % 2 for i in range(n_scales)])):
-        #     raise ValueError("Because of how the Portilla-Simoncelli model handles "
-        #                      "multiscale representations, it only works with images"
-        #                      " whose shape can be divided by 2 `n_scales` times.")
         self.spatial_corr_width = spatial_corr_width
         self.n_scales = n_scales
         self.n_orientations = n_orientations
