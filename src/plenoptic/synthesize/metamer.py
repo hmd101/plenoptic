@@ -636,6 +636,7 @@ class MetamerCTF(Metamer):
         if (change_scale_criterion is not None) and (stop_criterion >= change_scale_criterion):
             raise ValueError("stop_criterion must be strictly less than "
                              "change_scale_criterion, or things get weird!")
+        
 
         # initialize the optimizer and scheduler
         self._initialize_optimizer(optimizer, scheduler)
@@ -662,6 +663,7 @@ class MetamerCTF(Metamer):
                 break
 
         pbar.close()
+
 
     def _optimizer_step(self, pbar: tqdm,
                         change_scale_criterion: float,
@@ -695,6 +697,8 @@ class MetamerCTF(Metamer):
         # has stopped declining and, if so, switch to the next scale. Then
         # we're checking if self.scales_loss is long enough to check
         # ctf_iters_to_check back.
+        print(f"self.scales: {self.scales}, self.scales_finished: {self.scales_finished}")  # Debugging
+
         if len(self.scales) > 1 and len(self.scales_loss) >= ctf_iters_to_check:
             # Now we check whether loss has decreased less than
             # change_scale_criterion
@@ -711,21 +715,50 @@ class MetamerCTF(Metamer):
                     # reset ctf target representation, so we update it on
                     # next pass
                     self._ctf_target_representation = None
-        loss, overall_loss = self.optimizer.step(self._closure)
-        self._scales_loss.append(loss.item())
+
+        
+        # loss, overall_loss = self.optimizer.step(self._closure)
+        # self._scales_loss.append(loss.item())
+        # self._losses.append(overall_loss.item())
+
+        # grad_norm = torch.linalg.vector_norm(self.metamer.grad.data, ord=2,
+        #                                      dim=None)
+        # self._gradient_norm.append(grad_norm.item())
+
+        # # optionally step the scheduler
+        # if self.scheduler is not None:
+        #     self.scheduler.step(loss.item())
+
+        # pixel_change_norm = torch.linalg.vector_norm(self.metamer - last_iter_metamer,
+        #                                              ord=2, dim=None)
+        # self._pixel_change_norm.append(pixel_change_norm.item())
+
+
+        # Initialize lists to store individual channel losses
+        channel_losses = []
+        #loss, overall_loss = None, None
+
+        # Calculate loss separately for each channel
+        for channel in range(self.metamer.shape[1]):  # assuming the shape is (batch, channel, height, width)
+            loss, overall_loss = self.optimizer.step(lambda: self._closure(channel))
+            channel_losses.append(loss.item())
+
+        # Aggregate the channel losses; here logsumexp is used to keep the errors in the separate channels more aligned
+        aggregated_loss = torch.logsumexp(channel_losses) # or any other aggregation method, 
+
+        self._scales_loss.append(aggregated_loss)
         self._losses.append(overall_loss.item())
 
-        grad_norm = torch.linalg.vector_norm(self.metamer.grad.data, ord=2,
-                                             dim=None)
+        grad_norm = torch.linalg.vector_norm(self.metamer.grad.data, ord=2, dim=None)
         self._gradient_norm.append(grad_norm.item())
 
         # optionally step the scheduler
         if self.scheduler is not None:
-            self.scheduler.step(loss.item())
+            self.scheduler.step(aggregated_loss)
 
-        pixel_change_norm = torch.linalg.vector_norm(self.metamer - last_iter_metamer,
-                                                     ord=2, dim=None)
+        pixel_change_norm = torch.linalg.vector_norm(self.metamer - last_iter_metamer, ord=2, dim=None)
         self._pixel_change_norm.append(pixel_change_norm.item())
+
         # add extra info here if you want it to show up in progress bar
         pbar.set_postfix(
             OrderedDict(loss=f"{overall_loss.item():.04e}",
@@ -734,9 +767,15 @@ class MetamerCTF(Metamer):
                         pixel_change_norm=f"{pixel_change_norm.item():.04e}",
                         current_scale=self.scales[0],
                         current_scale_loss=f'{loss.item():.04e}'))
+
+        # Print the shape of the metamer tensor
+        print(f"Metamer shape: {self.metamer.shape}")
+
+        # Print the shape of the scales loss list
+        print(f"Scales loss length: {len(self.scales_loss)}")
         return overall_loss
 
-    def _closure(self) -> Tuple[Tensor, Tensor]:
+    def _closure(self, channel:int) -> Tuple[Tensor, Tensor]:
         r"""An abstraction of the gradient calculation, before the optimization step.
 
         This enables optimization algorithms that perform several evaluations
@@ -769,26 +808,71 @@ class MetamerCTF(Metamer):
             # scales
             if self.coarse_to_fine == 'together':
                 analyze_kwargs['scales'] += self.scales_finished
+
+        # metamer_representation = self.model(self.metamer, **analyze_kwargs)
+        # # if analyze_kwargs is empty, we can just compare
+        # # metamer_representation against our cached target_representation
+        # if analyze_kwargs:
+        #     if self._ctf_target_representation is None:
+        #         target_rep = self.model(self.image, **analyze_kwargs)
+        #         self._ctf_target_representation = target_rep
+        #     else:
+        #         target_rep = self._ctf_target_representation
+        #     # this is just for display, so don't compute gradients
+        #     with torch.no_grad():
+        #         overall_loss = self.objective_function(None, None)
+        # else:
+        #     target_rep = None
+        #     overall_loss = None
+
+        # loss = self.objective_function(metamer_representation, target_rep)
+        # loss.backward(retain_graph=False)
+        # if overall_loss is None:
+        #     overall_loss = loss.clone()
+
+
+
+        # Compute metamer_representation for the specified channel
+        
         metamer_representation = self.model(self.metamer, **analyze_kwargs)
+        if metamer_representation.dim() == 4:
+            metamer_representation = metamer_representation[:, channel, :, :]
+        elif metamer_representation.dim() == 3:
+            metamer_representation = metamer_representation[channel, :, :]
+
+        print(f"analyze_kwargs: {analyze_kwargs}")  # Debugging
+        print(f"metamer_representation shape: {metamer_representation.shape}")  # Debugging
         # if analyze_kwargs is empty, we can just compare
         # metamer_representation against our cached target_representation
         if analyze_kwargs:
             if self._ctf_target_representation is None:
                 target_rep = self.model(self.image, **analyze_kwargs)
+                if target_rep.dim() == 4:
+                    target_rep = target_rep[:, channel, :, :]
+                    print(f"target_rep shape: {target_rep.shape}")  # Debugging
+                elif target_rep.dim() == 3:
+                    target_rep = target_rep[channel, :, :]
+                    print(f"target_rep shape: {target_rep.shape}")  # Debugging
                 self._ctf_target_representation = target_rep
+                
             else:
                 target_rep = self._ctf_target_representation
-            # this is just for display, so don't compute gradients
+                if target_rep.dim() == 4:
+                    target_rep = target_rep[:, channel, :, :]
+                elif target_rep.dim() == 3:
+                    target_rep = target_rep[channel, :, :]
+                # this is just for display, so don't compute gradients
             with torch.no_grad():
                 overall_loss = self.objective_function(None, None)
         else:
             target_rep = None
             overall_loss = None
 
+        # Compute the loss for the specified channel
         loss = self.objective_function(metamer_representation, target_rep)
         loss.backward(retain_graph=False)
-        if overall_loss is None:
-            overall_loss = loss.clone()
+
+
 
         return loss, overall_loss
 
