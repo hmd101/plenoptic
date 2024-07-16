@@ -265,9 +265,11 @@ class Geodesic(OptimizedSynthesis):
         velocity = torch.diff(z, dim=0)
         # computes the squared loss in representation space, default norm: L2
         if self.loss_type_rep == 'l1':
-            step_energy = torch.linalg.vector_norm(velocity, ord=1, dim=[1, 2, 3]) ** 2
+            # don't square the norm to promote sparser updates
+            step_energy = torch.linalg.vector_norm(velocity, ord=1, dim=[1, 2, 3]) #** 2
         else:
             # default, i.e., l2 norm
+            # promote smoother updates
             step_energy = torch.linalg.vector_norm(velocity, ord=2, dim=[1, 2, 3]) ** 2
         # computes the squared loss in representation space, default norm: L2
         #step_energy = self.compute_loss_squared(velocity)
