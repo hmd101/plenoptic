@@ -780,6 +780,7 @@ class MetamerCTF(Metamer):
                 target_rep = self._ctf_target_representation
             # this is just for display, so don't compute gradients
             with torch.no_grad():
+
                 overall_loss = self.objective_function(None, None)
         else:
             target_rep = None
