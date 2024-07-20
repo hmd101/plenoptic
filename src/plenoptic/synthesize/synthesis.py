@@ -299,7 +299,7 @@ class OptimizedSynthesis(Synthesis):
     def _initialize_optimizer(self,
                               optimizer: Optional[torch.optim.Optimizer],
                               synth_name: str,
-                              learning_rate: float = .001):
+                              learning_rate: float = .01):
         """Initialize optimizer.
 
         First time this is called, optimizer can be:
