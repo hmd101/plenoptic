@@ -1241,3 +1241,24 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
         #print(f'covariance matrix requires grad: {covariance_matrix.requires_grad}')
 
         return scale_ch_covar*covariance_matrix
+    
+    # overwriting the following two methods allows us to use the plot_representation method
+    # with the modified model, making examining it easier. In particular, it will add the new cross-channel statistics to the plot.
+    def convert_to_dict(self, representation_tensor: torch.Tensor) -> OrderedDict:
+        """Convert tensor of stats to dictionary."""
+        #n_cross_channel_cov = self.n_scales * self.n_orientations
+        n_cross_channel_cov = self.num_channels ** 2
+        rep = super().convert_to_dict(representation_tensor[..., :-n_cross_channel_cov])
+        cross_channel_cov = representation_tensor[..., -n_cross_channel_cov:]
+        rep['cross_channel_covariance'] = einops.rearrange(cross_channel_cov, 'b c (s o) -> b c s o', s=self.n_scales, o=self.n_orientations)
+        return rep
+
+    def _representation_for_plotting(self, rep: OrderedDict) -> OrderedDict:
+        r"""Convert the data into a dictionary representation that is more convenient for plotting.
+
+        Intended as a helper function for plot_representation.
+        """
+        cross_channel_cov = rep.pop('cross_channel_covariance')
+        data = super()._representation_for_plotting(rep)
+        data['cross_channel_covariance'] = cross_channel_cov.flatten()
+        return data

@@ -92,6 +92,22 @@ def rgb_to_opponentcone(image):
     """
     return color_transform_image(image, rgb2opc)
 
+def opponentcone_to_rgb(image):
+    """
+    Convert an RGB image to a cone opponent space image.
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        Input opc image tensor of shape (C, H, W) or (N, C, H, W).
+
+    Returns
+    -------
+    torch.Tensor
+        Transformed image tensor in rgb
+    """
+    return color_transform_image(image, opc2rgb)
+
 def rescale(image: torch.Tensor, range: tuple = (0, 1)):
     """
     Rescale the pixel values of an image tensor to a specified range.
