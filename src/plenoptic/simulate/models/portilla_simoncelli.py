@@ -1125,3 +1125,115 @@ class PortillaSimoncelli(nn.Module):
             sc = update_stem(ax.containers[0], vals)
             stem_artists.extend([sc.markerline, sc.stemlines])
         return stem_artists
+
+
+""" 
+The following class tweaks the PortillaSimoncelli model so that it will process color images better.
+  In particular, we introduce cross-color channel statistics, to capture the relationship between different color channels.
+""" 
+
+class PortillaSimoncelliCrossChannel(po.simul.PortillaSimoncelli):
+    r"""Model for measuring a subset of texture statistics reported by PortillaSimoncelli
+
+    Parameters
+    ----------
+    im_shape: int
+        the size of the images being processed by the model, should be divisible by 2^n_scales
+    remove_keys: list
+        The dictionary keys for the statistics we will "remove".  In practice we set them to zero.
+        Possible keys: ["pixel_statistics", "auto_correlation_magnitude",
+        "skew_reconstructed", "kurtosis_reconstructed", "auto_correlation_reconstructed", 
+        "std_reconstructed", "magnitude_std", "cross_orientation_correlation_magnitude", 
+        "cross_scale_correlation_magnitude" "cross_scale_correlation_real", "var_highpass_residual"]
+    """
+    def __init__(
+        self,
+        im_shape,
+    ):
+        super().__init__(im_shape, n_scales=4, n_orientations=4, spatial_corr_width=9)
+        
+    def forward(self, image: torch.Tensor, scales: Optional[List[SCALES_TYPE]] = None) -> torch.Tensor:
+        """
+        Generate Texture Statistics representation of an image with cross-channel statistics.
+
+        Parameters
+        ----------
+        image : Tensor
+            A 4d tensor (batch, channel, height, width) containing the image(s) to analyze.
+        scales : List[SCALES_TYPE], optional
+            Which scales to include in the returned representation. If None, include all scales.
+
+        Returns
+        -------
+        representation_tensor : Tensor
+            3d tensor of shape (batch, channel, stats) containing the measured texture statistics.
+
+        Raises
+        ------
+        ValueError
+            If `image` is not 4d or has a dtype other than float or complex.
+        """
+
+        # call the parent class forward method to compute the base statistics
+        base_representations = super().forward(image, scales=scales)
+
+        # compute the cross-channel statistics
+        cross_channel_stats = self._compute_cross_channel_stats(image)
+
+        # modidfy the base representation to include the cross-channel statistics
+        representation_tensor = torch.cat((base_representations, cross_channel_stats), dim=-1)
+
+        # unnormalize representation_tensor
+        # representation_tensor = representation_tensor * (max_val - min_val) + min_val
+
+        return representation_tensor
+
+    def _compute_cross_channel_stats(self, image:torch.Tensor) -> torch.Tensor:
+        """
+        Compute cross-channel statistics for the input image.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            A 4d tensor (batch, channel, height, width) containing the image(s) to analyze.
+
+        Returns
+        -------
+        torch.Tensor
+            3d tensor of shape (batch, channel, stats) containing the cross-channel statistics.
+        """
+
+        ## compute the cross-channel statistics
+        cross_channel_stats = self._compute_cross_channel_covariance(image)
+
+
+
+        return cross_channel_stats
+    
+    def _compute_cross_channel_covariance(self, image:torch.Tensor) -> torch.Tensor:
+        """
+        Compute the cross-channel covariance for the input image.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            A 4d tensor (batch, channel, height, width) containing the image(s), potentially in some preprocessed state like cone LMS, OPC space.
+
+        Returns
+        -------
+        torch.Tensor
+            3d tensor of shape (batch, channel, stats) containing the cross-channel covariance statistics.
+        """
+
+        # Compute the mean across the channel dimension
+        mean_across_channels = image.mean(dim=(2, 3), keepdim=True)  # shape: [batch_size, num_channels, 1, 1]
+
+        # Centering the data
+        centered_data = image - mean_across_channels
+
+        # Vectorized computation of covariance matrix
+        covariance_matrix = (centered_data[:, :, None, :, :] * centered_data[:, None, :, :, :]).mean(dim=(3, 4))
+
+        #print(f'covariance matrix requires grad: {covariance_matrix.requires_grad}')
+
+        return 1e5*covariance_matrix
