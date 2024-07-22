@@ -1132,7 +1132,7 @@ The following class tweaks the PortillaSimoncelli model so that it will process 
   In particular, we introduce cross-color channel statistics, to capture the relationship between different color channels.
 """ 
 
-class PortillaSimoncelliCrossChannel(po.simul.PortillaSimoncelli):
+class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
     r"""Model for measuring a subset of texture statistics reported by PortillaSimoncelli
 
     Parameters
@@ -1206,16 +1206,20 @@ class PortillaSimoncelliCrossChannel(po.simul.PortillaSimoncelli):
         ## compute the cross-channel statistics
         cross_channel_stats = self._compute_cross_channel_covariance(image)
 
+        # TODO: add more cross-channel statistics here as summarized here: https://github.com/LabForComputationalVision/plenoptic/issues/46
+        # In particlar, add cross-channel correlation for edge and phase magnitudes.
 
 
         return cross_channel_stats
     
-    def _compute_cross_channel_covariance(self, image:torch.Tensor) -> torch.Tensor:
+    def _compute_cross_channel_covariance(self, image:torch.Tensor, scale_ch_covar:float = 1.0) -> torch.Tensor:
         """
         Compute the cross-channel covariance for the input image.
 
         Parameters
         ----------
+        scale_ch_covar: float
+            A scaling factor for the cross-channel covariance. This can be used to adjust the relative importance of the cross-channel covariance statistics.
         image : torch.Tensor
             A 4d tensor (batch, channel, height, width) containing the image(s), potentially in some preprocessed state like cone LMS, OPC space.
 
@@ -1236,4 +1240,4 @@ class PortillaSimoncelliCrossChannel(po.simul.PortillaSimoncelli):
 
         #print(f'covariance matrix requires grad: {covariance_matrix.requires_grad}')
 
-        return 1e5*covariance_matrix
+        return scale_ch_covar*covariance_matrix

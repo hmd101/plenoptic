@@ -74,6 +74,30 @@ def l2_norm(synth_rep: Tensor, ref_rep: Tensor, **kwargs) -> Tensor:
     """
     return torch.linalg.vector_norm(ref_rep - synth_rep, ord=2)
 
+def l2_channelwise(synth_rep: torch.Tensor, ref_rep: torch.Tensor, **kwargs) -> torch.Tensor:
+    r"""l2-norm of the difference between ref_rep and synth_rep per channel and then combined via logsumexp to keep the differences at scale.
+
+    Parameters
+    ----------
+    synth_rep
+        The first tensor to compare, model representation of the
+        synthesized image.
+    ref_rep
+        The second tensor to compare, model representation of the
+        reference image. must be same size as ``synth_rep``.
+    kwargs
+        Ignored, only present to absorb extra arguments.
+
+    Returns
+    -------
+    loss
+        The L2-norm of the difference between ``ref_rep`` and ``synth_rep``.
+
+    """
+    channel_losses = torch.linalg.vector_norm(ref_rep - synth_rep, dim=2,ord=2)
+    # print(f'channel losses {channel_losses}, channel loss shape: {channel_losses.shape}')
+    return torch.logsumexp(channel_losses, dim=1)
+
 
 def relative_MSE(synth_rep: Tensor, ref_rep: Tensor, **kwargs) -> Tensor:
     r"""Squared l2-norm of the difference between reference representation
