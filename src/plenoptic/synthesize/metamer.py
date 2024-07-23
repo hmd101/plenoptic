@@ -137,7 +137,7 @@ class Metamer(OptimizedSynthesis):
                    optimizer: Optional[torch.optim.Optimizer] = None,
                    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
                    store_progress: Union[bool, int] = False,
-                   stop_criterion: float = 1e-4, stop_iters_to_check: int = 50,
+                   stop_criterion: float = 1e-8, stop_iters_to_check: int = 50,
                    ):
         r"""Synthesize a metamer.
 
@@ -585,7 +585,7 @@ class MetamerCTF(Metamer):
                    optimizer: Optional[torch.optim.Optimizer] = None,
                    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
                    store_progress: Union[bool, int] = False,
-                   stop_criterion: float = 1e-4, stop_iters_to_check: int = 50,
+                   stop_criterion: float = 1e-8, stop_iters_to_check: int = 50,
                    change_scale_criterion: Optional[float] = 1e-2,
                    ctf_iters_to_check: int = 50,
                    ):
