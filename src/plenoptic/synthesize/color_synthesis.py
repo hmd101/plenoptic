@@ -9,8 +9,7 @@ import pyrtools as pt
 import numpy as np
 import sys
 sys.path.append('../tools/')
-import img_transforms 
-
+from plenoptic.tools import img_transforms 
 
 
 # Function to load and preprocess images
@@ -40,12 +39,21 @@ def inverse_rescale_and_transform(images: torch.Tensor) -> List[Image.Image]:
 
 
 # Main function to run synthesis and save images
-def main(max_iter: int = 300,init_image = None, 
-        ctf_iters_to_check: int = 3, loss_function = po.tools.optim.l2_channelwise,model =  po.simul.PortillaSimoncelliCrossChannel, coarse_to_fine: str = 'together', image_path: str = '../../../../../ceph/Datasets/select_color_textures_unsplash',save_path: str = '../../../../../ceph/experiments/color_texture_synth',):
+def main(model_name: str,max_iter: int = 300,init_image = None, 
+        ctf_iters_to_check: int = 3, loss_function = po.tools.optim.l2_channelwise, coarse_to_fine: str = 'together', image_path: str = '../../../../../ceph/Datasets/select_color_textures_unsplash',save_path: str = '../../../../../ceph/experiments/color_texture_synth',):
     
+    # TODO: Add these arguments from portillasimoncelli constructor:  
+    #n_scales: int = 4,
+    #n_orientations: int = 4,
+    #spatial_corr_width: int = 9
+    # crosschannel covariance
     images = load_and_preprocess_images(image_path)
     if init_image is None:
         init_image = torch.rand_like(images[0].unsqueeze(dim=0)) * .01 + images[0].unsqueeze(dim=0).mean()
+
+
+    model = model_name(images[0].shape)
+
     metamer = po.synth.MetamerCTF(
         model=model, 
         loss_function=loss_function, 
@@ -65,21 +73,21 @@ def main(max_iter: int = 300,init_image = None,
     
     for i, img in enumerate(rgb_images):
         print(f"Saving image {i}")
-        save_filename = f"{ctf_iters_to_check}_{model}_{max_iter}.png"
+        save_filename = f"{ctf_iters_to_check}_{model_name}_{max_iter}.png"
         img.save(os.path.join(save_path, save_filename))
 
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Run image synthesis with specified parameters.")
-    parser.add_argument("--image_path", type=str, required=True, help="Path to the input images.")
-    parser.add_argument("--save_path", type=str, required=True, help="Path to save the output images.")
-    parser.add_argument("--model", type=str, required=True, help="Model to be used.")
-    parser.add_argument("--loss_function", type=str, required=True, help="Loss function to be used. Recommended: l2channelwise in po.tools.optim")
-    parser.add_argument("--init_image", type=None, required=True, help="Initial image for synthesis.")
+    parser.add_argument("--image_path", type=str, required=False, default= '../../../../../ceph/Datasets/select_color_textures_unsplash',help="Path to the input images.")
+    parser.add_argument("--save_path", type=str, required=False,default='../../../../../ceph/experiments/color_texture_synth', help="Path to save the output images.")
+    parser.add_argument("--model_name", type=str, required=True, help="Model to be used.")
+    #parser.add_argument("--loss_function", type=str, required=False, help="Loss function to be used. Recommended: l2channelwise in po.tools.optim")
+    #parser.add_argument("--init_image", type=None, required=False, help="Initial image for synthesis.")
     parser.add_argument("--coarse_to_fine", type=bool, default=False, help="Use coarse to fine synthesis.")
-    parser.add_argument("--max_iter", type=int, required=True, help="Maximum number of iterations. If GPU available, use > 3000.")
-    parser.add_argument("--ctf_iters_to_check", type=int, nargs='+', required=True, help="Iterations to check in coarse to fine synthesis.")
+    parser.add_argument("--max_iter", type=int, required=False,default=300, help="Maximum number of iterations. If GPU available, use > 3000.")
+    parser.add_argument("--ctf_iters_to_check", type=int, nargs='+', required=False,default=3, help="Iterations to check in coarse to fine synthesis.")
     
 
     args = parser.parse_args()
@@ -87,9 +95,9 @@ if __name__ == "__main__":
     main(
         image_path=args.image_path, 
         save_path=args.save_path, 
-        model=getattr(po.simul, args.model), 
-        loss_function=getattr(po.tools.optim, args.loss_function), 
-        init_image=torch.load(args.init_image) if args.init_image else None, 
+        model_name=getattr(po.simul, args.model_name), 
+        #loss_function=getattr(po.tools.optim, args.loss_function), 
+        #init_image=torch.load(args.init_image) if args.init_image else None, 
         coarse_to_fine=args.coarse_to_fine, 
         max_iter=args.max_iter, 
         ctf_iters_to_check=args.ctf_iters_to_check
