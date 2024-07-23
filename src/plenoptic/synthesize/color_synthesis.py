@@ -20,7 +20,7 @@ def load_and_preprocess_images(image_path: str) -> torch.Tensor:
     ])
     
     images = []
-    for filename in glob.glob(os.path.join(image_path, '*.jpg')):  # Assuming JPG images
+    for filename in glob.glob(os.path.join(image_path, '*.jpg')):  
         img = Image.open(filename).convert('RGB')
         img = transform(img)
         img = img_transforms.rgb_to_opponentcone(img)
@@ -28,7 +28,12 @@ def load_and_preprocess_images(image_path: str) -> torch.Tensor:
     print("Images loaded and preprocessed.")
     return torch.stack(images)
 
-
+def rescale_and_preprocess_images(images: torch.Tensor) -> torch.Tensor:
+    img_transforms.rgb_to_opponentcone(images)
+    # Rescale images to [0, 1]
+    images = images - images.min()
+    images = images / images.max()
+    return images
 
 # Function to inverse rescale and transform back to RGB
 def inverse_rescale_and_transform(images: torch.Tensor) -> List[Image.Image]:
@@ -78,7 +83,8 @@ def main(model_name: str,max_iter: int = 300,init_image = None,
 
 if __name__ == "__main__":
     import argparse
-    
+    # path to the data: /mnt/home/hdettki/ceph/Datasets/select_color_textures_unsplash
+    # path to color script: /mnt/home/hdettki/code/plenoptic/src/plenoptic/synthesize
     parser = argparse.ArgumentParser(description="Run image synthesis with specified parameters.")
     parser.add_argument("--image_path", type=str, required=False, default= '../../../../../ceph/Datasets/select_color_textures_unsplash',help="Path to the input images.")
     parser.add_argument("--save_path", type=str, required=False,default='../../../../../ceph/experiments/color_texture_synth', help="Path to save the output images.")
