@@ -96,7 +96,7 @@ def l2_channelwise(synth_rep: torch.Tensor, ref_rep: torch.Tensor, **kwargs) -> 
     """
     channel_losses = torch.linalg.vector_norm(ref_rep - synth_rep, dim=2,ord=2)
     # print(f'channel losses {channel_losses}, channel loss shape: {channel_losses.shape}')
-    return torch.logsumexp(channel_losses,dim=(1))
+    return torch.logsumexp(channel_losses,dim=1).mean(dim=0)
 
 
 def relative_MSE(synth_rep: Tensor, ref_rep: Tensor, **kwargs) -> Tensor:

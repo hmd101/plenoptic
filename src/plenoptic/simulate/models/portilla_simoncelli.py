@@ -343,18 +343,18 @@ class PortillaSimoncelli(nn.Module):
         # Then, the reconstructed lowpass image at each scale. (this is a list
         # of length n_scales+1 containing tensors of shape (batch, channel,
         # height, width))
-        reconstructed_images = self._reconstruct_lowpass_at_each_scale(pyr_dict)
+        reconstructed_images = self._reconstruct_lowpass_at_each_scale(pyr_dict)# list of image tensors, coarse to fine
         # the reconstructed_images list goes from coarse-to-fine, but we want
         # each of the stats computed from it to go from fine-to-coarse, so we
         # reverse its direction.
-        reconstructed_images = reconstructed_images[::-1]
+        reconstructed_images = reconstructed_images[::-1] # list of image tensors, fine to coarse
 
         # Now, start calculating the PS texture stats.
 
         # Calculate pixel statistics (mean, variance, skew, kurtosis, min,
         # max).
-        pixel_stats = self._compute_pixel_stats(image)
-
+        pixel_stats = self._compute_pixel_stats(image) #shape (batch, channel, 6) 
+        
         # Compute the central autocorrelation of the coefficient magnitudes.
         # This is a tensor of shape: (batch, channel, spatial_corr_width,
         # spatial_corr_width, n_scales, n_orientations)
@@ -881,7 +881,7 @@ class PortillaSimoncelli(nn.Module):
         doubled_phase_mags = []
         doubled_phase_sep = []
         # don't do this for the finest scale
-        for coeff in pyr_coeffs[1:]:
+        for coeff in pyr_coeffs[1:]: 
             # We divide by the factor of 4 here in order to approximately
             # equalize the steerable pyramid coefficient values across scales.
             # This could also be handled by making the pyramid tight frame
@@ -892,6 +892,24 @@ class PortillaSimoncelli(nn.Module):
             doubled_phase_mags.append(doubled_phase_mag)
             doubled_phase_sep.append(einops.pack([doubled_phase.real, doubled_phase.imag],
                                                  'b c * h w')[0])
+
+        # performance boost with list comprehension:
+        # doubled_phase_mags = [
+        #     signal.expand(coeff.to(torch.complex64), 2) / 4.0
+        #     for coeff in pyr_coeffs[1:]
+        # ]
+
+        # # Further process in a vectorized manner where possible
+        # doubled_phase_mags = [
+        #     signal.modulate_phase(doubled_phase, 2).abs() - signal.modulate_phase(doubled_phase, 2).abs().mean(dim=(-2, -1), keepdim=True)
+        #     for doubled_phase in doubled_phase_mags
+        # ]
+
+        # doubled_phase_sep = [
+        #     einops.pack([doubled_phase.real, doubled_phase.imag], 'b c * h w')[0]
+        #     for doubled_phase in doubled_phase_mags
+        # ]
+
         return doubled_phase_mags, doubled_phase_sep
 
     def plot_representation(

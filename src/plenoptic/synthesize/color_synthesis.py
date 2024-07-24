@@ -18,13 +18,13 @@ def load_and_preprocess_images(image_path: str) -> torch.Tensor:
         transforms.Resize((256, 256)),
         transforms.ToTensor()
     ])
-    
     images = []
-    for filename in glob.glob(os.path.join(image_path, '*.jpg')):  
+    for filename in glob.glob(os.path.join(os.path.expanduser("~"),image_path, '*.jpg')):  
         img = Image.open(filename).convert('RGB')
         img = transform(img)
         img = img_transforms.rgb_to_opponentcone(img)
         images.append(img)
+    
     print("Images loaded and preprocessed.")
     return torch.stack(images)
 
@@ -45,7 +45,7 @@ def inverse_rescale_and_transform(images: torch.Tensor) -> List[Image.Image]:
 
 # Main function to run synthesis and save images
 def main(model_name: str,max_iter: int = 300,init_image = None, 
-        ctf_iters_to_check: int = 3, loss_function = po.tools.optim.l2_channelwise, coarse_to_fine: str = 'together', image_path: str = '../../../../../ceph/Datasets/select_color_textures_unsplash',save_path: str = '../../../../../ceph/experiments/color_texture_synth',):
+        ctf_iters_to_check: int = 3, loss_function = po.tools.optim.l2_channelwise, coarse_to_fine: str = 'together', image_path: str = 'ceph/Datasets/select_color_textures_unsplash',save_path: str = 'ceph/experiments/color_texture_synth',):
     
     # TODO: Add these arguments from portillasimoncelli constructor:  
     #n_scales: int = 4,
@@ -86,8 +86,8 @@ if __name__ == "__main__":
     # path to the data: /mnt/home/hdettki/ceph/Datasets/select_color_textures_unsplash
     # path to color script: /mnt/home/hdettki/code/plenoptic/src/plenoptic/synthesize
     parser = argparse.ArgumentParser(description="Run image synthesis with specified parameters.")
-    parser.add_argument("--image_path", type=str, required=False, default= '../../../../../ceph/Datasets/select_color_textures_unsplash',help="Path to the input images.")
-    parser.add_argument("--save_path", type=str, required=False,default='../../../../../ceph/experiments/color_texture_synth', help="Path to save the output images.")
+    parser.add_argument("--image_path", type=str, required=False, default= 'ceph/Datasets/select_color_textures_unsplash',help="Path to the input images.")
+    parser.add_argument("--save_path", type=str, required=False,default='ceph/experiments/color_texture_synth', help="Path to save the output images.")
     parser.add_argument("--model_name", type=str, required=True, help="Model to be used.")
     #parser.add_argument("--loss_function", type=str, required=False, help="Loss function to be used. Recommended: l2channelwise in po.tools.optim")
     #parser.add_argument("--init_image", type=None, required=False, help="Initial image for synthesis.")
