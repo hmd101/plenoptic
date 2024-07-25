@@ -89,8 +89,8 @@ class Metamer(OptimizedSynthesis):
                  initial_image: Optional[Tensor] = None):
         super().__init__(range_penalty_lambda, allowed_range)
         validate_input(image, allowed_range=allowed_range)
-        validate_model(model, image_shape=image.shape, image_dtype=image.dtype,
-                       device=image.device)
+        #validate_model(model, image_shape=image.shape, image_dtype=image.dtype,
+                      # device=image.device)
         self._model = model
         self._image = image
         self._image_shape = image.shape

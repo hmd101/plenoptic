@@ -324,8 +324,10 @@ class PortillaSimoncelli(nn.Module):
         # pyr_dict is the dictionary of complex-valued tensors returned by the
         # steerable pyramid. pyr_coeffs is a list (length n_scales) of 5d
         # tensors, each of shape (batch, channel, scales, n_orientations,
-        # height, width) containing the complex-valued oriented bands, while
-        # highpass is a real-valued 4d tensor of shape (batch, channel, height,
+        # height, width) containing the complex-valued oriented bands. 
+        # TODO: 5D tensor is correct but below, there's one dimension to much listed: 
+        # is it (batch, channel, scales, height, width)?
+        # Highpass is a real-valued 4d tensor of shape (batch, channel, height,
         # width). Note that the residual lowpass in pyr_dict has been demeaned.
         # We keep both the dict and list of pyramid coefficients because we
         # need the dictionary for reconstructing the image done later on.
@@ -1145,7 +1147,7 @@ class PortillaSimoncelli(nn.Module):
         return stem_artists
 
 
-""" 
+""" #
 The following class tweaks the PortillaSimoncelli model so that it will process color images better.
   In particular, we introduce cross-color channel statistics, to capture the relationship between different color channels.
 """ 
