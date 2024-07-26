@@ -1002,6 +1002,7 @@ class PortillaSimoncelli(nn.Module):
         rep = {k: v[0, 0] for k, v in self.convert_to_dict(data).items()}
         data = self._representation_for_plotting(rep)
 
+        # Determine plot grid layout
         if self.n_scales != 1:
             n_rows = 3
             n_cols = int(np.ceil(len(data)/n_rows))
@@ -1009,8 +1010,6 @@ class PortillaSimoncelli(nn.Module):
             # then we don't have any cross-scale correlations, so fewer axes.
             n_rows = 2
             n_cols = int(np.ceil(len(data)/n_rows))
-
-
 
         # Set up grid spec
         if ax is None:
