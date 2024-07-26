@@ -993,14 +993,6 @@ class PortillaSimoncelli(nn.Module):
             List of 6 or 8 axes containing the plot (depending on self.n_scales)
 
         """
-        if self.n_scales != 1:
-            n_rows = 3
-            n_cols = 3
-        else:
-            # then we don't have any cross-scale correlations, so fewer axes.
-            n_rows = 2
-            n_cols = 3
-
         # pick the batch_idx we want (but keep the data 3d), and average over
         # channels (but keep the data 3d). We keep data 3d because
         # convert_to_dict relies on it.
@@ -1009,6 +1001,16 @@ class PortillaSimoncelli(nn.Module):
         # of the first two dims
         rep = {k: v[0, 0] for k, v in self.convert_to_dict(data).items()}
         data = self._representation_for_plotting(rep)
+
+        if self.n_scales != 1:
+            n_rows = 3
+            n_cols = int(np.ceil(len(data)/n_rows))
+        else:
+            # then we don't have any cross-scale correlations, so fewer axes.
+            n_rows = 2
+            n_cols = int(np.ceil(len(data)/n_rows))
+
+
 
         # Set up grid spec
         if ax is None:
@@ -1029,7 +1031,7 @@ class PortillaSimoncelli(nn.Module):
         # plot data
         axes = []
         for i, (k, v) in enumerate(data.items()):
-            ax = fig.add_subplot(gs[i // 3, i % 3])
+            ax = fig.add_subplot(gs[i // n_cols, i % n_cols])
             ax = clean_stem_plot(to_numpy(v).flatten(), ax, k, ylim=ylim)
             axes.append(ax)
 
