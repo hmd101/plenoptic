@@ -1,13 +1,8 @@
 import pytest
 import plenoptic as po
-import os.path as op
-import pathlib
 import torch
 
-import plenoptic.simulate.canonical_computations.filters as filters
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DTYPE = torch.float32
 IMG_DIR = po.data.fetch_data('test_images.tar.gz')
 
 torch.set_num_threads(1)  # torch uses all avail threads which will slow tests
@@ -133,6 +128,13 @@ def get_model(name):
         return model
     elif name == "PortillaSimoncelli":
         return po.simul.PortillaSimoncelli((256, 256))
+    elif name == "NonModule":
+        class NonModule:
+            def __init__(self):
+                self.name = "nonmodule"
+            def __call__(self, x):
+                return 1 * x
+        return NonModule()
 
 
 @pytest.fixture(scope='package')

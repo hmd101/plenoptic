@@ -80,8 +80,9 @@ class TestSignal(object):
     
     @pytest.mark.parametrize('size_A', [1, 3])
     @pytest.mark.parametrize('size_B', [1, 2, 3])
-    def test_add_noise(self, einstein_img, size_A, size_B):
-        A = einstein_img.repeat(size_A, 1, 1, 1)
+    @pytest.mark.parametrize('dtype', [torch.float16, torch.float32, torch.float64])
+    def test_add_noise(self, einstein_img, size_A, size_B, dtype):
+        A = einstein_img.repeat(size_A, 1, 1, 1).to(dtype)
         B = size_B * [4]
         if size_A != size_B and size_A != 1 and size_B != 1:
             with pytest.raises(Exception):
@@ -249,13 +250,14 @@ class TestDownsampleUpsample(object):
 
     @pytest.mark.parametrize('odd', [0, 1])
     @pytest.mark.parametrize('size', [9, 10, 11, 12])
-    def test_filter(self, odd, size):
-        img = torch.zeros([1, 1, 24 + odd, 25], device=DEVICE, dtype=torch.float32)
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float64])
+    def test_filter(self, odd, size, dtype):
+        img = torch.zeros([1, 1, 24 + odd, 25], device=DEVICE, dtype=dtype)
         img[0, 0, 12, 12] = 1
         filt = np.zeros([size, size + 1])
         filt[5, 5] = 1
         filt = scipy.ndimage.gaussian_filter(filt, sigma=1)
-        filt = torch.as_tensor(filt, dtype=torch.float32, device=DEVICE)
+        filt = torch.as_tensor(filt, dtype=dtype, device=DEVICE)
         img_down = po.tools.correlate_downsample(img, filt=filt)
         img_up = po.tools.upsample_convolve(img_down, odd=(odd, 1), filt=filt)
         assert np.unravel_index(img_up.cpu().numpy().argmax(), img_up.shape) == (0, 0, 12, 12)
@@ -455,6 +457,24 @@ class TestValidate(object):
         with pytest.raises(ValueError, match="metric should return <= 5e-7 on two identical"):
             po.tools.validate.validate_metric(metric, device=DEVICE)
 
+    def test_validate_metric_nonnegative(self):
+        metric = lambda x, y : (x-y).sum()
+        with pytest.raises(ValueError, match="metric should always return non-negative"):
+            po.tools.validate.validate_metric(metric, device=DEVICE)
+
     @pytest.mark.parametrize('model', ['frontend.OnOff.nograd'], indirect=True)
     def test_remove_grad(self, model):
         po.tools.validate.validate_model(model, device=DEVICE)
+
+
+class TestOptim(object):
+
+    def test_penalize_range_above(self):
+        img = .5 * torch.ones((1, 1, 4, 4))
+        img[..., 0, :] = 2
+        assert po.tools.optim.penalize_range(img).item() == 4
+
+    def test_penalize_range_below(self):
+        img = .5 * torch.ones((1, 1, 4, 4))
+        img[..., 0, :] = -1
+        assert po.tools.optim.penalize_range(img).item() == 4

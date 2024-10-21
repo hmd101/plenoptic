@@ -71,7 +71,7 @@ jobs:
         pip install --upgrade --upgrade-strategy eager .[dev]
     - name: Run tests with pytest
       run: |
-        pytest -n auto --cov-report xml
+        pytest --cov-report xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@7598e39340e1dff4d6ebf7cf07a5e8184bde67e7 # v4.0.1
       with:
@@ -113,7 +113,7 @@ jobs:
       # messages and similar, so we don't want to check them.
     - name: strip notebook output
       run: |
-        pip install nbstripout
+        pipx install nbstripout
         nbstripout examples/*ipynb
     - uses: urlstechie/urlchecker-action@b643b43e2ac605e1475331c7b67247d242b7dce4 # 0.0.34
       with:

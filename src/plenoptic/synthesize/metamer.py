@@ -1,21 +1,22 @@
 """Synthesize model metamers."""
 
-import torch
 import re
+import warnings
+from collections import OrderedDict
+from collections.abc import Callable
+from typing import Literal
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from ..tools import optim, display, signal, data
-from ..tools.validate import validate_input, validate_model, validate_coarse_to_fine
+from ..tools import data, display, optim, signal
 from ..tools.convergence import coarse_to_fine_enough, loss_convergence
-from typing import Union, Tuple, Callable, List, Dict, Optional
-from typing_extensions import Literal
+from ..tools.validate import validate_coarse_to_fine, validate_input
 from .synthesis import OptimizedSynthesis
-import warnings
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from collections import OrderedDict
 
 
 class Metamer(OptimizedSynthesis):
@@ -79,8 +80,8 @@ class Metamer(OptimizedSynthesis):
     .. [1] J Portilla and E P Simoncelli. A Parametric Texture Model
        based on Joint Statistics of Complex Wavelet Coefficients. Int'l
        Journal of Computer Vision. 40(1):49-71, October, 2000.
-       http://www.cns.nyu.edu/~eero/ABSTRACTS/portilla99-abstract.html
-       http://www.cns.nyu.edu/~lcv/texture/
+       https://www.cns.nyu.edu/~eero/ABSTRACTS/portilla99-abstract.html
+       https://www.cns.nyu.edu/~lcv/texture/
 
     """
 
@@ -90,8 +91,8 @@ class Metamer(OptimizedSynthesis):
         model: torch.nn.Module,
         loss_function: Callable[[Tensor, Tensor], Tensor] = optim.mse,
         range_penalty_lambda: float = 0.1,
-        allowed_range: Tuple[float, float] = (0, 1),
-        initial_image: Optional[Tensor] = None,
+        allowed_range: tuple[float, float] = (0, 1),
+        initial_image: Tensor | None = None,
     ):
         super().__init__(range_penalty_lambda, allowed_range)
         validate_input(image, allowed_range=allowed_range)
@@ -107,7 +108,7 @@ class Metamer(OptimizedSynthesis):
         self._saved_metamer = []
         self._store_progress = None
 
-    def _initialize(self, initial_image: Optional[Tensor] = None):
+    def _initialize(self, initial_image: Tensor | None = None):
         """Initialize the metamer.
 
         Set the ``self.metamer`` attribute to be an attribute with the
@@ -144,9 +145,9 @@ class Metamer(OptimizedSynthesis):
     def synthesize(
         self,
         max_iter: int = 100,
-        optimizer: Optional[torch.optim.Optimizer] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-        store_progress: Union[bool, int] = False,
+        optimizer: torch.optim.Optimizer | None = None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+        store_progress: bool | int = False,
         stop_criterion: float = 1e-8,
         stop_iters_to_check: int = 50,
     ):
@@ -210,8 +211,8 @@ class Metamer(OptimizedSynthesis):
 
     def objective_function(
         self,
-        metamer_representation: Optional[Tensor] = None,
-        target_representation: Optional[Tensor] = None,
+        metamer_representation: Tensor | None = None,
+        target_representation: Tensor | None = None,
     ) -> Tensor:
         """Compute the metamer synthesis loss.
 
@@ -316,8 +317,8 @@ class Metamer(OptimizedSynthesis):
 
     def _initialize_optimizer(
         self,
-        optimizer: Optional[torch.optim.Optimizer],
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
+        optimizer: torch.optim.Optimizer | None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler | None,
     ):
         """Initialize optimizer and scheduler."""
         # this uses the OptimizedSynthesis setter
@@ -403,18 +404,16 @@ class Metamer(OptimizedSynthesis):
                 dtype and device for all parameters and buffers in this module
 
         """
-        attrs = [
-            "_image",
-            "_target_representation",
-            "_metamer",
-            "_model",
-            "_saved_metamer",
-        ]
+        attrs = ["_image", "_target_representation", "_metamer", "_saved_metamer"]
         super().to(*args, attrs=attrs, **kwargs)
+        # try to call .to() on model. this should work, but it might fail if e.g., this
+        # a custom model that doesn't inherit torch.nn.Module
+        try:
+            self._model = self._model.to(*args, **kwargs)
+        except AttributeError:
+            warnings.warn("Unable to call model.to(), so we leave it as is.")
 
-    def load(
-        self, file_path: str, map_location: Optional[str] = None, **pickle_load_args
-    ):
+    def load(self, file_path: str, map_location: str | None = None, **pickle_load_args):
         r"""Load all relevant stuff from a .pt file.
 
         This should be called by an initialized ``Metamer`` object -- we will
@@ -454,9 +453,9 @@ class Metamer(OptimizedSynthesis):
     def _load(
         self,
         file_path: str,
-        map_location: Optional[str] = None,
-        additional_check_attributes: List[str] = [],
-        additional_check_loss_functions: List[str] = [],
+        map_location: str | None = None,
+        additional_check_attributes: list[str] = [],
+        additional_check_loss_functions: list[str] = [],
         **pickle_load_args,
     ):
         r"""Helper function for loading.
@@ -588,8 +587,8 @@ class MetamerCTF(Metamer):
         model: torch.nn.Module,
         loss_function: Callable[[Tensor, Tensor], Tensor] = optim.mse,
         range_penalty_lambda: float = 0.1,
-        allowed_range: Tuple[float, float] = (0, 1),
-        initial_image: Optional[Tensor] = None,
+        allowed_range: tuple[float, float] = (0, 1),
+        initial_image: Tensor | None = None,
         coarse_to_fine: Literal["together", "separate"] = "together",
     ):
         super().__init__(
@@ -630,12 +629,12 @@ class MetamerCTF(Metamer):
     def synthesize(
         self,
         max_iter: int = 100,
-        optimizer: Optional[torch.optim.Optimizer] = None,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-        store_progress: Union[bool, int] = False,
+        optimizer: torch.optim.Optimizer | None = None,
+        scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+        store_progress: bool | int = False,
         stop_criterion: float = 1e-8,
         stop_iters_to_check: int = 50,
-        change_scale_criterion: Optional[float] = 1e-2,
+        change_scale_criterion: float | None = 1e-2,
         ctf_iters_to_check: int = 50,
     ):
         r"""Synthesize a metamer.
@@ -798,7 +797,7 @@ class MetamerCTF(Metamer):
         )
         return overall_loss
 
-    def _closure(self) -> Tuple[Tensor, Tensor]:
+    def _closure(self) -> tuple[Tensor, Tensor]:
         r"""An abstraction of the gradient calculation, before the optimization step.
 
         This enables optimization algorithms that perform several evaluations
@@ -903,9 +902,7 @@ class MetamerCTF(Metamer):
         loss_conv = loss_convergence(self, stop_criterion, stop_iters_to_check)
         return loss_conv and coarse_to_fine_enough(self, i, ctf_iters_to_check)
 
-    def load(
-        self, file_path: str, map_location: Optional[str] = None, **pickle_load_args
-    ):
+    def load(self, file_path: str, map_location: str | None = None, **pickle_load_args):
         r"""Load all relevant stuff from a .pt file.
 
         This should be called by an initialized ``Metamer`` object -- we will
@@ -965,8 +962,8 @@ class MetamerCTF(Metamer):
 
 def plot_loss(
     metamer: Metamer,
-    iteration: Optional[int] = None,
-    ax: Optional[mpl.axes.Axes] = None,
+    iteration: int | None = None,
+    ax: mpl.axes.Axes | None = None,
     channel=None,
     **kwargs,
 ) -> mpl.axes.Axes:
@@ -1018,10 +1015,10 @@ def plot_loss(
 def display_metamer(
     metamer: Metamer,
     batch_idx: int = 0,
-    channel_idx: Optional[int] = None,
-    zoom: Optional[float] = None,
-    iteration: Optional[int] = None,
-    ax: Optional[mpl.axes.Axes] = None,
+    channel_idx: int | None = None,
+    zoom: float | None = None,
+    iteration: int | None = None,
+    ax: mpl.axes.Axes | None = None,
     **kwargs,
 ) -> mpl.axes.Axes:
     """Display metamer.
@@ -1092,7 +1089,7 @@ def display_metamer(
 
 
 def _representation_error(
-    metamer: Metamer, iteration: Optional[int] = None, **kwargs
+    metamer: Metamer, iteration: int | None = None, **kwargs
 ) -> Tensor:
     r"""Get the representation error.
 
@@ -1127,12 +1124,12 @@ def _representation_error(
 def plot_representation_error(
     metamer: Metamer,
     batch_idx: int = 0,
-    iteration: Optional[int] = None,
-    ylim: Union[Tuple[float, float], None, Literal[False]] = None,
-    ax: Optional[mpl.axes.Axes] = None,
+    iteration: int | None = None,
+    ylim: tuple[float, float] | None | Literal[False] = None,
+    ax: mpl.axes.Axes | None = None,
     as_rgb: bool = False,
     **kwargs,
-) -> List[mpl.axes.Axes]:
+) -> list[mpl.axes.Axes]:
     r"""Plot distance ratio showing how close we are to convergence.
 
     We plot ``_representation_error(metamer, iteration)``. For more details, see
@@ -1188,10 +1185,10 @@ def plot_representation_error(
 def plot_pixel_values(
     metamer: Metamer,
     batch_idx: int = 0,
-    channel_idx: Optional[int] = None,
-    iteration: Optional[int] = None,
-    ylim: Union[Tuple[float, float], Literal[False]] = False,
-    ax: Optional[mpl.axes.Axes] = None,
+    channel_idx: int | None = None,
+    iteration: int | None = None,
+    ylim: tuple[float, float] | Literal[False] = False,
+    ax: mpl.axes.Axes | None = None,
     **kwargs,
 ) -> mpl.axes.Axes:
     r"""Plot histogram of pixel values of target image and its metamer.
@@ -1269,9 +1266,7 @@ def plot_pixel_values(
     return ax
 
 
-def _check_included_plots(
-    to_check: Union[List[str], Dict[str, float]], to_check_name: str
-):
+def _check_included_plots(to_check: list[str] | dict[str, float], to_check_name: str):
     """Check whether the user wanted us to create plots that we can't.
 
     Helper function for plot_synthesis_status and animate.
@@ -1420,10 +1415,10 @@ def _check_included_plots(
 
 
 def _setup_synthesis_fig(
-    fig: Optional[mpl.figure.Figure] = None,
-    axes_idx: Dict[str, int] = {},
-    figsize: Optional[Tuple[float, float]] = None,
-    included_plots: List[str] = [
+    fig: mpl.figure.Figure | None = None,
+    axes_idx: dict[str, int] = {},
+    figsize: tuple[float, float] | None = None,
+    included_plots: list[str] = [
         "display_metamer",
         "plot_loss",
         "plot_representation_error",
@@ -1432,7 +1427,7 @@ def _setup_synthesis_fig(
     plot_loss_width: float = 1,
     plot_representation_error_width: float = 1,
     plot_pixel_values_width: float = 1,
-) -> Tuple[mpl.figure.Figure, List[mpl.axes.Axes], Dict[str, int]]:
+) -> tuple[mpl.figure.Figure, list[mpl.axes.Axes], dict[str, int]]:
     """Set up figure for plot_synthesis_status with optional loss per channel."""
     n_subplots = 0
     axes_idx = axes_idx.copy()
@@ -1654,23 +1649,23 @@ def _setup_synthesis_fig(
 def plot_synthesis_status(
     metamer: Metamer,
     batch_idx: int = 0,
-    channel_idx: Optional[int] = None,
-    iteration: Optional[int] = None,
-    ylim: Union[Tuple[float, float], None, Literal[False]] = None,
-    vrange: Union[Tuple[float, float], str] = "indep1",
-    zoom: Optional[float] = None,
+    channel_idx: int | None = None,
+    iteration: int | None = None,
+    ylim: tuple[float, float] | None | Literal[False] = None,
+    vrange: tuple[float, float] | str = "indep1",
+    zoom: float | None = None,
     plot_representation_error_as_rgb: bool = False,
-    fig: Optional[mpl.figure.Figure] = None,
-    axes_idx: Dict[str, int] = {},
-    figsize: Optional[Tuple[float, float]] = None,
-    included_plots: List[str] = [
+    fig: mpl.figure.Figure | None = None,
+    axes_idx: dict[str, int] = {},
+    figsize: tuple[float, float] | None = None,
+    included_plots: list[str] = [
         "display_metamer",
         "plot_loss",
         "plot_representation_error",
     ],
-    width_ratios: Dict[str, float] = {},
+    width_ratios: dict[str, float] = {},
     split_loss_channels: bool = False,  # New parameter
-) -> Tuple[mpl.figure.Figure, Dict[str, int]]:
+) -> tuple[mpl.figure.Figure, dict[str, int]]:
     """
     Make a plot showing synthesis status with optional loss per channel.
     """
@@ -1729,20 +1724,20 @@ def animate(
     metamer: Metamer,
     framerate: int = 10,
     batch_idx: int = 0,
-    channel_idx: Optional[int] = None,
-    ylim: Union[str, None, Tuple[float, float], Literal[False]] = None,
-    vrange: Union[Tuple[float, float], str] = (0, 1),
-    zoom: Optional[float] = None,
+    channel_idx: int | None = None,
+    ylim: str | None | tuple[float, float] | Literal[False] = None,
+    vrange: tuple[float, float] | str = (0, 1),
+    zoom: float | None = None,
     plot_representation_error_as_rgb: bool = False,
-    fig: Optional[mpl.figure.Figure] = None,
-    axes_idx: Dict[str, int] = {},
-    figsize: Optional[Tuple[float, float]] = None,
-    included_plots: List[str] = [
+    fig: mpl.figure.Figure | None = None,
+    axes_idx: dict[str, int] = {},
+    figsize: tuple[float, float] | None = None,
+    included_plots: list[str] = [
         "display_metamer",
         "plot_loss",
         "plot_representation_error",
     ],
-    width_ratios: Dict[str, float] = {},
+    width_ratios: dict[str, float] = {},
 ) -> mpl.animation.FuncAnimation:
     r"""Animate synthesis progress.
 
@@ -1750,12 +1745,14 @@ def animate(
     ``metamer.plot_synthesis_status`` animated over time, for each stored
     iteration.
 
-    We return the matplotlib FuncAnimation object. In order to view it in a
-    Jupyter notebook, use the
-    ``plenoptic.tools.display.convert_anim_to_html(anim)`` function. In order
-    to save, use ``anim.save(filename)`` (note for this that you'll need the
-    appropriate writer installed and on your path, e.g., ffmpeg, imagemagick,
-    etc). Either of these will probably take a reasonably long amount of time.
+    This functions returns a matplotlib FuncAnimation object. See our documentation
+    (e.g.,
+    [Quickstart](https://plenoptic.readthedocs.io/en/latest/tutorials/00_quickstart.html))
+    for examples on how to view it in a Jupyter notebook. In order to save, use
+    ``anim.save(filename)``. In either case, this can take a while and you'll need the
+    appropriate writer installed and on your path, e.g., ffmpeg, imagemagick, etc). See
+    [matplotlib documentation](https://matplotlib.org/stable/api/animation_api.html) for
+    more details.
 
     Parameters
     ----------

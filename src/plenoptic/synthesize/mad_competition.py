@@ -94,7 +94,7 @@ class MADCompetition(OptimizedSynthesis):
     .. [1] Wang, Z., & Simoncelli, E. P. (2008). Maximum differentiation (MAD)
            competition: A methodology for comparing computational models of
            perceptual discriminability. Journal of Vision, 8(12), 1–13.
-           http://dx.doi.org/10.1167/8.12.8
+           https://dx.doi.org/10.1167/8.12.8
 
     """
     def __init__(self, image: Tensor,
@@ -127,7 +127,7 @@ class MADCompetition(OptimizedSynthesis):
         # approximately the same magnitude
         if metric_tradeoff_lambda is None:
             loss_ratio = torch.as_tensor(self.optimized_metric_loss[-1] / self.reference_metric_loss[-1],
-                                      dtype=torch.float32)
+                                         dtype=image.dtype)
             metric_tradeoff_lambda = torch.pow(torch.as_tensor(10),
                                                torch.round(torch.log10(loss_ratio))).item()
             warnings.warn("Since metric_tradeoff_lamda was None, automatically set"
@@ -1039,12 +1039,14 @@ def animate(mad: MADCompetition,
     ``mad.plot_synthesis_status`` animated over time, for each stored
     iteration.
 
-    We return the matplotlib FuncAnimation object. In order to view it in a
-    Jupyter notebook, use the
-    ``plenoptic.tools.display.convert_anim_to_html(anim)`` function. In order
-    to save, use ``anim.save(filename)`` (note for this that you'll need the
-    appropriate writer installed and on your path, e.g., ffmpeg, imagemagick,
-    etc). Either of these will probably take a reasonably long amount of time.
+    This functions returns a matplotlib FuncAnimation object. See our documentation
+    (e.g.,
+    [Quickstart](https://plenoptic.readthedocs.io/en/latest/tutorials/00_quickstart.html))
+    for examples on how to view it in a Jupyter notebook. In order to save, use
+    ``anim.save(filename)``. In either case, this can take a while and you'll need the
+    appropriate writer installed and on your path, e.g., ffmpeg, imagemagick, etc). See
+    [matplotlib documentation](https://matplotlib.org/stable/api/animation_api.html) for
+    more details.
 
     Parameters
     ----------
