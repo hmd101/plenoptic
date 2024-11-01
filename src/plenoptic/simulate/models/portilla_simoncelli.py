@@ -8,7 +8,7 @@ consider them as members of the same family of textures.
 """
 
 from collections import OrderedDict
-from typing import Literal, Union
+from typing import Literal
 
 import einops
 import matplotlib as mpl
@@ -28,7 +28,7 @@ from ..canonical_computations.steerable_pyramid_freq import (
 )
 from ..canonical_computations.steerable_pyramid_freq import SteerablePyramidFreq
 
-SCALES_TYPE = Union[Literal["pixel_statistics"], PYR_SCALES_TYPE]
+SCALES_TYPE = Literal["pixel_statistics"] | PYR_SCALES_TYPE
 
 
 class PortillaSimoncelli(nn.Module):
@@ -88,6 +88,14 @@ class PortillaSimoncelli(nn.Module):
         super().__init__()
 
         self.image_shape = image_shape
+        if any([(image_shape[-1] / 2**i) % 2 for i in range(n_scales)]) or any(
+            [(image_shape[-2] / 2**i) % 2 for i in range(n_scales)]
+        ):
+            raise ValueError(
+                "Because of how the Portilla-Simoncelli model handles "
+                "multiscale representations, it only works with images"
+                " whose shape can be divided by 2 `n_scales` times."
+            )
         self.spatial_corr_width = spatial_corr_width
         self.n_scales = n_scales
         self.n_orientations = n_orientations
@@ -211,7 +219,11 @@ class PortillaSimoncelli(nn.Module):
         shape_dict["kurtosis_reconstructed"] = scales_with_lowpass
 
         auto_corr = np.ones(
-            (self.spatial_corr_width, self.spatial_corr_width, self.n_scales + 1),
+            (
+                self.spatial_corr_width,
+                self.spatial_corr_width,
+                self.n_scales + 1,
+            ),
             dtype=object,
         )
         auto_corr *= einops.rearrange(scales_with_lowpass, "s -> 1 1 s")
@@ -220,7 +232,8 @@ class PortillaSimoncelli(nn.Module):
         shape_dict["std_reconstructed"] = scales_with_lowpass
 
         cross_orientation_corr_mag = np.ones(
-            (self.n_orientations, self.n_orientations, self.n_scales), dtype=int
+            (self.n_orientations, self.n_orientations, self.n_scales),
+            dtype=int,
         )
         cross_orientation_corr_mag *= einops.rearrange(scales, "s -> 1 1 s")
         shape_dict["cross_orientation_correlation_magnitude"] = (
@@ -232,13 +245,15 @@ class PortillaSimoncelli(nn.Module):
         shape_dict["magnitude_std"] = mags_std
 
         cross_scale_corr_mag = np.ones(
-            (self.n_orientations, self.n_orientations, self.n_scales - 1), dtype=int
+            (self.n_orientations, self.n_orientations, self.n_scales - 1),
+            dtype=int,
         )
         cross_scale_corr_mag *= einops.rearrange(scales_without_coarsest, "s -> 1 1 s")
         shape_dict["cross_scale_correlation_magnitude"] = cross_scale_corr_mag
 
         cross_scale_corr_real = np.ones(
-            (self.n_orientations, 2 * self.n_orientations, self.n_scales - 1), dtype=int
+            (self.n_orientations, 2 * self.n_orientations, self.n_scales - 1),
+            dtype=int,
         )
         cross_scale_corr_real *= einops.rearrange(scales_without_coarsest, "s -> 1 1 s")
         shape_dict["cross_scale_correlation_real"] = cross_scale_corr_real
@@ -292,7 +307,10 @@ class PortillaSimoncelli(nn.Module):
         # like for the auto-correlations)
         triu_inds = torch.triu_indices(self.n_orientations, self.n_orientations)
         for k, v in mask_dict.items():
-            if k in ["auto_correlation_magnitude", "auto_correlation_reconstructed"]:
+            if k in [
+                "auto_correlation_magnitude",
+                "auto_correlation_reconstructed",
+            ]:
                 # Symmetry M_{i,j} = M_{n-i+1, n-j+1}
                 # Start with all False, then place True in necessary stats.
                 mask = torch.zeros(v.shape, dtype=torch.bool)
@@ -362,9 +380,10 @@ class PortillaSimoncelli(nn.Module):
         # real_pyr_coeffs, which contain the demeaned magnitude of the pyramid
         # coefficients and the real part of the pyramid coefficients
         # respectively.
-        mag_pyr_coeffs, real_pyr_coeffs = self._compute_intermediate_representations(
-            pyr_coeffs
-        )
+        (
+            mag_pyr_coeffs,
+            real_pyr_coeffs,
+        ) = self._compute_intermediate_representations(pyr_coeffs)
 
         # Then, the reconstructed lowpass image at each scale. (this is a list
         # of length n_scales+1 containing tensors of shape (batch, channel,
@@ -421,9 +440,10 @@ class PortillaSimoncelli(nn.Module):
         if self.n_scales != 1:
             # First, double the phase the coefficients, so we can correctly
             # compute correlations across scales.
-            phase_doubled_mags, phase_doubled_sep = self._double_phase_pyr_coeffs(
-                pyr_coeffs
-            )
+            (
+                phase_doubled_mags,
+                phase_doubled_sep,
+            ) = self._double_phase_pyr_coeffs(pyr_coeffs)
             # Compute the cross-scale correlations between the magnitude
             # coefficients. For each coefficient, we're correlating it with the
             # coefficients at the next-coarsest scale. this will be a tensor of
@@ -564,11 +584,11 @@ class PortillaSimoncelli(nn.Module):
         """
         if representation_tensor.shape[-1] != len(self._representation_scales):
             raise ValueError(
-                "representation tensor is the wrong length (expected "
-                f"{len(self._representation_scales)} but got {representation_tensor.shape[-1]})!"
-                " Did you remove some of the scales? (i.e., by setting "
-                "scales in the forward pass)? convert_to_dict does not "
-                "support such tensors."
+                "representation tensor is the wrong length (expected"
+                f" {len(self._representation_scales)} but got"
+                f" {representation_tensor.shape[-1]})! Did you remove some of"
+                " the scales? (i.e., by setting scales in the forward pass)?"
+                " convert_to_dict does not support such tensors."
             )
 
         rep = self._necessary_stats_dict.copy()
@@ -860,8 +880,8 @@ class PortillaSimoncelli(nn.Module):
         self,
         coeffs_tensor: list[Tensor],
         coeffs_tensor_other: list[Tensor],
-        coeffs_var: Tensor | None = None,
-        coeffs_other_var: Tensor | None = None,
+        coeffs_var: None | Tensor = None,
+        coeffs_other_var: None | Tensor = None,
     ) -> Tensor:
         """Compute cross-correlations.
 
@@ -969,24 +989,6 @@ class PortillaSimoncelli(nn.Module):
             doubled_phase_sep.append(
                 einops.pack([doubled_phase.real, doubled_phase.imag], "b c * h w")[0]
             )
-
-        # performance boost with list comprehension:
-        # doubled_phase_mags = [
-        #     signal.expand(coeff.to(torch.complex64), 2) / 4.0
-        #     for coeff in pyr_coeffs[1:]
-        # ]
-
-        # # Further process in a vectorized manner where possible
-        # doubled_phase_mags = [
-        #     signal.modulate_phase(doubled_phase, 2).abs() - signal.modulate_phase(doubled_phase, 2).abs().mean(dim=(-2, -1), keepdim=True)
-        #     for doubled_phase in doubled_phase_mags
-        # ]
-
-        # doubled_phase_sep = [
-        #     einops.pack([doubled_phase.real, doubled_phase.imag], 'b c * h w')[0]
-        #     for doubled_phase in doubled_phase_mags
-        # ]
-
         return doubled_phase_mags, doubled_phase_sep
 
     def plot_representation(
@@ -1115,15 +1117,16 @@ class PortillaSimoncelli(nn.Module):
         return fig, axes
 
     def _representation_for_plotting(self, rep: OrderedDict) -> OrderedDict:
-        r"""Convert the data into a dictionary representation that is more convenient for plotting.
+        r"""Convert the data into a dictionary representation that is more convenient
+        for plotting.
 
         Intended as a helper function for plot_representation.
 
         """
         if rep["skew_reconstructed"].ndim > 1:
             raise ValueError(
-                "Currently, only know how to plot single batch and channel at a time! "
-                "Select and/or average over those dimensions"
+                "Currently, only know how to plot single batch and channel at"
+                " a time! Select and/or average over those dimensions"
             )
         data = OrderedDict()
         data["pixels+var_highpass"] = torch.cat(
@@ -1228,9 +1231,10 @@ class PortillaSimoncelli(nn.Module):
         return stem_artists
 
 
-""" #
-The following class tweaks the PortillaSimoncelli model so that it will process color images better.
-  In particular, we introduce cross-color channel statistics, to capture the relationship between different color channels.
+""" 
+The following class tweaks the PortillaSimoncelli model so that it will process color 
+images better. In particular, we introduce cross-color channel statistics, to 
+capture the relationship between different color channels.
 """
 
 
@@ -1240,13 +1244,16 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
     Parameters
     ----------
     im_shape: int
-        the size of the images being processed by the model, should be divisible by 2^n_scales
+        the size of the images being processed by the model, should be divisible by
+        2^n_scales
     remove_keys: list
-        The dictionary keys for the statistics we will "remove".  In practice we set them to zero.
+        The dictionary keys for the statistics we will "remove".  In practice we set
+        them to zero.
         Possible keys: ["pixel_statistics", "auto_correlation_magnitude",
         "skew_reconstructed", "kurtosis_reconstructed", "auto_correlation_reconstructed",
         "std_reconstructed", "magnitude_std", "cross_orientation_correlation_magnitude",
-        "cross_scale_correlation_magnitude" "cross_scale_correlation_real", "var_highpass_residual"]
+        "cross_scale_correlation_magnitude" "cross_scale_correlation_real",
+        "var_highpass_residual"]
     """
 
     def __init__(
@@ -1259,19 +1266,23 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
         self, image: torch.Tensor, scales: list[SCALES_TYPE] | None = None
     ) -> torch.Tensor:
         """
-        Generate Texture Statistics representation of an image with cross-channel statistics.
+        Generate Texture Statistics representation of an image with
+        cross-channel statistics.
 
         Parameters
         ----------
         image : Tensor
-            A 4d tensor (batch, channel, height, width) containing the image(s) to analyze.
+            A 4d tensor (batch, channel, height, width) containing the image(s) to
+            analyze.
         scales : List[SCALES_TYPE], optional
-            Which scales to include in the returned representation. If None, include all scales.
+            Which scales to include in the returned representation. If None,
+            include all scales.
 
         Returns
         -------
         representation_tensor : Tensor
-            3d tensor of shape (batch, channel, stats) containing the measured texture statistics.
+            3d tensor of shape (batch, channel, stats) containing the measured texture
+            statistics.
 
         Raises
         ------
@@ -1302,12 +1313,14 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
         Parameters
         ----------
         image : torch.Tensor
-            A 4d tensor (batch, channel, height, width) containing the image(s) to analyze.
+            A 4d tensor (batch, channel, height, width) containing the image(s) to
+            analyze.
 
         Returns
         -------
         torch.Tensor
-            3d tensor of shape (batch, channel, stats) containing the cross-channel statistics.
+            3d tensor of shape (batch, channel, stats) containing the cross-channel
+            statistics.
         """
 
         ## compute the cross-channel statistics
@@ -1327,14 +1340,17 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
         Parameters
         ----------
         scale_ch_covar: float
-            A scaling factor for the cross-channel covariance. This can be used to adjust the relative importance of the cross-channel covariance statistics.
+            A scaling factor for the cross-channel covariance. This can be used to
+            adjust the relative importance of the cross-channel covariance statistics.
         image : torch.Tensor
-            A 4d tensor (batch, channel, height, width) containing the image(s), potentially in some preprocessed state like cone LMS, OPC space.
+            A 4d tensor (batch, channel, height, width) containing the image(s),
+            potentially in some preprocessed state like cone LMS, OPC space.
 
         Returns
         -------
         torch.Tensor
-            3d tensor of shape (batch, channel, stats) containing the cross-channel covariance statistics.
+            3d tensor of shape (batch, channel, stats) containing the cross-channel
+            covariance statistics.
         """
 
         # Compute the mean across the channel dimension
@@ -1354,8 +1370,9 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
 
         return scale_ch_covar * covariance_matrix
 
-    # overwriting the following two methods allows us to use the plot_representation method
-    # with the modified model, making examining it easier. In particular, it will add the new cross-channel statistics to the plot.
+    # overwriting the following two methods allows us to use the plot_representation
+    # method with the modified model, making examining it easier. In particular,
+    # it will add the new cross-channel statistics to the plot.
     def convert_to_dict(self, representation_tensor: torch.Tensor) -> OrderedDict:
         """Convert tensor of stats to dictionary."""
         # n_cross_channel_cov = self.n_scales * self.n_orientations
@@ -1371,7 +1388,8 @@ class PortillaSimoncelliCrossChannel(PortillaSimoncelli):
         return rep
 
     def _representation_for_plotting(self, rep: OrderedDict) -> OrderedDict:
-        r"""Convert the data into a dictionary representation that is more convenient for plotting.
+        r"""Convert the data into a dictionary representation that is more convenient
+        for plotting.
 
         Intended as a helper function for plot_representation.
         """
