@@ -1231,9 +1231,9 @@ class PortillaSimoncelli(nn.Module):
         return stem_artists
 
 
-""" 
-The following class tweaks the PortillaSimoncelli model so that it will process color 
-images better. In particular, we introduce cross-color channel statistics, to 
+"""
+The following class tweaks the PortillaSimoncelli model so that it will process color
+images better. In particular, we introduce cross-color channel statistics, to
 capture the relationship between different color channels.
 """
 
