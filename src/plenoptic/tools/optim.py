@@ -77,7 +77,8 @@ def l2_norm(synth_rep: Tensor, ref_rep: Tensor, **kwargs) -> Tensor:
 def l2_channelwise(
     synth_rep: torch.Tensor, ref_rep: torch.Tensor, **kwargs
 ) -> torch.Tensor:
-    r"""l2-norm of the difference between ref_rep and synth_rep per channel and then combined via logsumexp to keep the differences at scale.
+    r"""l2-norm of the difference between ref_rep and synth_rep per channel and
+    then combined via logsumexp to keep the differences at scale.
 
     Parameters
     ----------
@@ -96,6 +97,7 @@ def l2_channelwise(
         The L2-norm of the difference between ``ref_rep`` and ``synth_rep``.
 
     """
+    # Average over H,W dimensions only
     channel_losses = torch.linalg.vector_norm(ref_rep - synth_rep, dim=2, ord=2)
     # print(f'channel losses {channel_losses}, channel loss shape: {channel_losses.shape}')
     return torch.logsumexp(channel_losses, dim=1).mean(dim=0)
