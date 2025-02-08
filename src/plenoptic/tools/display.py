@@ -219,7 +219,7 @@ def animshow(
 
     This functions returns a matplotlib FuncAnimation object. See our documentation
     (e.g.,
-    [Quickstart](https://plenoptic.readthedocs.io/en/latest/tutorials/00_quickstart.html))
+    [Quickstart](https://docs.plenoptic.org/docs/branch/main/tutorials/00_quickstart.html))
     for examples on how to view it in a Jupyter notebook. In order to save, use
     ``anim.save(filename)``. In either case, this can take a while and you'll need the
     appropriate writer installed and on your path, e.g., ffmpeg, imagemagick, etc). See
@@ -1042,7 +1042,7 @@ def plot_representation(
                     # need to keep the shape the same because of how we
                     # check for shape below (unbinding removes a dimension,
                     # so we add it back)
-                    data_dict[title + "_%02d" % i] = d.unsqueeze(1)
+                    data_dict[title + f"_{i:02d}"] = d.unsqueeze(1)
             else:
                 data_dict[title] = data
             data = data_dict
